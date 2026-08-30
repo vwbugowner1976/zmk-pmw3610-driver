@@ -93,6 +93,7 @@ extern "C" {
 /* Helper macros used to convert sensor values. */
 #define PMW3610_SVALUE_TO_CPI(svalue) ((uint32_t)(svalue).val1)
 #define PMW3610_SVALUE_TO_TIME(svalue) ((uint32_t)(svalue).val1)
+#define PMW3610_SVALUE_TO_REPORT_INTERVAL(svalue) ((int32_t)(svalue).val1)
 
 /** @brief Sensor specific attributes of PMW3610. */
 enum pmw3610_attribute {
@@ -117,6 +118,9 @@ enum pmw3610_attribute {
 
 	/** Sampling frequency time during REST3 mode [ms]. */
 	PMW3610_ATTR_REST3_SAMPLE_TIME,
+
+	/** Minimum interval between input reports [ms]. */
+	PMW3610_ATTR_REPORT_INTERVAL,
 
 };
 

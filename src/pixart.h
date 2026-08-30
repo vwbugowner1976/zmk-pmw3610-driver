@@ -19,6 +19,7 @@ extern "C" {
 struct pixart_data {
     const struct device          *dev;
     bool                         sw_smart_flag; // for pmw3610 smart algorithm
+    uint16_t                     report_interval_ms;
 
     struct gpio_callback         irq_gpio_cb; // motion pin irq callback
     struct k_work                trigger_work; // realtrigger job

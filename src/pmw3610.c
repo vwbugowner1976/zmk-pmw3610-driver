@@ -435,11 +435,9 @@ static int pmw3610_report_data(const struct device *dev) {
     static int64_t dx = 0;
     static int64_t dy = 0;
 
-#if CONFIG_PMW3610_REPORT_INTERVAL_MIN > 0
     static int64_t last_smp_time = 0;
     static int64_t last_rpt_time = 0;
     int64_t now = k_uptime_get();
-#endif
 
 	int err = pmw3610_read(dev, PMW3610_REG_MOTION_BURST, buf, PMW3610_BURST_SIZE);
     if (err) {
@@ -468,25 +466,21 @@ static int pmw3610_report_data(const struct device *dev) {
     }
 #endif
 
-#if CONFIG_PMW3610_REPORT_INTERVAL_MIN > 0
-    // purge accumulated delta, if last sampled had not been reported on last report tick
-    if (now - last_smp_time >= CONFIG_PMW3610_REPORT_INTERVAL_MIN) {
+    // Purge accumulated delta if the previous sample did not reach a report tick.
+    if (data->report_interval_ms > 0 && now - last_smp_time >= data->report_interval_ms) {
         dx = 0;
         dy = 0;
     }
     last_smp_time = now;
-#endif
 
     // accumulate delta until report in next iteration
     dx += x;
     dy += y;
 
-#if CONFIG_PMW3610_REPORT_INTERVAL_MIN > 0
-    // strict to report inerval
-    if (now - last_rpt_time < CONFIG_PMW3610_REPORT_INTERVAL_MIN) {
+    // Enforce the runtime-configurable minimum report interval.
+    if (data->report_interval_ms > 0 && now - last_rpt_time < data->report_interval_ms) {
         return 0;
     }
-#endif
 
     // fetch report value
     int16_t rx = (int16_t)CLAMP(dx, INT16_MIN, INT16_MAX);
@@ -495,9 +489,7 @@ static int pmw3610_report_data(const struct device *dev) {
     bool have_y = ry != 0;
 
     if (have_x || have_y) {
-#if CONFIG_PMW3610_REPORT_INTERVAL_MIN > 0
         last_rpt_time = now;
-#endif
         dx = 0;
         dy = 0;
         if (have_x) {
@@ -570,6 +562,7 @@ static int pmw3610_init(const struct device *dev) {
 
     // init smart algorithm flag;
     data->sw_smart_flag = false;
+    data->report_interval_ms = CONFIG_PMW3610_REPORT_INTERVAL_MIN;
 
     // init trigger handler work
     k_work_init(&data->trigger_work, pmw3610_work_callback);
@@ -636,6 +629,19 @@ static int pmw3610_attr_set(const struct device *dev, enum sensor_channel chan,
     case PMW3610_ATTR_REST3_SAMPLE_TIME:
         err = pmw3610_set_sample_time(dev, PMW3610_REG_REST3_RATE, PMW3610_SVALUE_TO_TIME(*val));
         break;
+
+    case PMW3610_ATTR_REPORT_INTERVAL: {
+        const int32_t interval_ms = PMW3610_SVALUE_TO_REPORT_INTERVAL(*val);
+        if (interval_ms < 0 || interval_ms > UINT16_MAX) {
+            err = -EINVAL;
+            break;
+        }
+
+        data->report_interval_ms = (uint16_t)interval_ms;
+        LOG_INF("Set report interval to %u ms", data->report_interval_ms);
+        err = 0;
+        break;
+    }
 
     default:
         LOG_ERR("Unknown attribute");
